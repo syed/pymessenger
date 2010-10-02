@@ -4,7 +4,7 @@ import json
 import time 
 import urllib2
 
-
+debug = 1 
 
 class Messenger :
 	def __init__( self, ckey , csecret ) : 
@@ -14,6 +14,14 @@ class Messenger :
 		self.login_base = "https://login.yahoo.com"
 		self.login_api_base = "https://api.login.yahoo.com"
 		self.messenger_api_base = "http://developer.messenger.yahooapis.com"
+		self.STATUS_AVALIABLE="0"
+		self.STATUS_BUSY="2"
+		self.STATUS_IDLE="999"
+		self.STATUS_OFFLINE="-1"
+		self.current_presense = self.STATUS_OFFLINE 
+		self.current_statusmesg =None 
+
+
 
 	def login (self, user='user' , password='password' ) :
 		""" Login to yahoo messenger """
@@ -22,6 +30,10 @@ class Messenger :
 		req_tok = self.getRequestToken()
 		self.oauth_tok = self.exchangeRequestTokenForOauthToken( req_tok ) 
 		self.session = self.startSession()  
+		#we are online now 
+		self.current_presense = self.STATUS_ONLINE
+		self.current_statusmesg = None 
+
 
 
 	def getRequestToken(self) :
@@ -30,7 +42,13 @@ class Messenger :
 		url += "&passwd=" + self.password
 		url += "&oauth_consumer_key=" + self.ckey
 
+		if debug :
+			print "getRequestToken : " + url 
+
 		resp = urllib2.urlopen(url).read()
+		
+		if debug : 
+			print "getRequestToken : "+ resp 
 		return resp.split('=')[1]
 
 
@@ -53,6 +71,7 @@ class Messenger :
 
 		json_resp = urllib2.urlopen(req).read()
 		print json_resp 
+
 		return MessengerSession(json_resp)
 
 
@@ -68,19 +87,54 @@ class Messenger :
 
 		req = urllib2.Request(url , data , headers  )
 
-		urllib2.urlopen(req).read()
-	def RefreshAccesToken(self ) : 
-		self.oauth_tok.RefreshToken()
-		#later :) 
-		pass 
+		urllib2.urlopen(req)
+	
+
+	def setPresence(self , status , mesg=None) :
+		
+		
+		url = self.messenger_api_base  + "/v1/presence?" + self.session.getsessionId()
+		url += self.oauth_tok.getOauthParams() 
+
+
+		headers = { 'Content-Type':'application/json;charset=utf-8' } 
+
+		data = '{ "presenceState" : "' + status + '",' 
+		
+		if mesg : 
+			data += '{ "presenceMessage" : "' + mesg + '"' 
+
+		data += '}'
+
+		req = urllib2.Request(url , data , headers  )
+		urllib2.urlopen(req)
+
+		self.current_presense = status 
+		self.current_statusmesg = mesg
+
+
+	def getContacts(self) : 
+		url = self.messenger_api_base  + "/v1/contacts?sid=" + self.session.getsessionId()  
+		
+		resp = urllib.urlopen(url).read()
+
+		return resp 
+
+
+
+
 
 
 class MessengerSession:
 	def __init__(self , json_data ) :
 		self.session_data = json.loads(json_data)
+		
 	
 	def getsessionId(self) :
 		return self.session_data['sessionId']
+
+	def getNotifyServer(self) :
+		return self.session_data['notifyServer']
 
 
 
